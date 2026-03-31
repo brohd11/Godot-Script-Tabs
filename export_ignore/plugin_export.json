@@ -1,0 +1,62 @@
+{
+	"export_root": "res://addons/script_tabs/export_ignore/exports",
+	"exports": [
+		{
+			"exclude": {
+				"directories": [
+					"res://addons/script_tabs/export_ignore"
+				],
+				"file_extensions": [],
+				"files": []
+			},
+			"export_folder": "script-tabs{{version=script_tabs}}/script_tabs",
+			"other_transfers": [],
+			"parser_overide_settings": {
+				"parse_cs": {
+
+				},
+				"parse_gd": {
+
+				},
+				"parse_tres": {
+
+				},
+				"parse_tscn": {
+
+				}
+			},
+			"remote_dir": "res://addons/script_tabs/src/remote",
+			"source": "res://addons/script_tabs"
+		}
+	],
+	"options": {
+		"include_import": true,
+		"include_uid": true,
+		"overwrite": true,
+		"parser_settings": {
+			"backport_target": 100,
+			"parse_cs": {
+				"namespace_rename": {
+
+				}
+			},
+			"parse_gd": {
+				"backport_string_renames": {
+
+				},
+				"class_rename_ignore": [],
+				"replace_editor_interface": false
+			},
+			"parse_tres": {
+
+			},
+			"parse_tscn": {
+
+			},
+			"use_relative_paths": false
+		}
+	},
+	"plugin_folder": "ScriptTabs{{version=script_tabs}}",
+	"post_script": "res://addons/script_tabs/export_ignore/pre_post_export.gd",
+	"pre_script": "res://addons/script_tabs/export_ignore/pre_post_export.gd"
+}
