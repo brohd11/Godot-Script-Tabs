@@ -1,30 +1,34 @@
 @tool
 extends EditorPlugin
 
+const UFile = ALibRuntime.Utils.UFile
 const UNode = ALibRuntime.Utils.UNode
 
 const ScriptListContextMenu = preload("res://addons/script_tabs/src/editor_plugins/context_menu.gd")
 
+var _plugin_initialized:=false
+
+# editor
+var script_editor_tab_container:TabContainer
+#
+
+var script_list_context_menu:ScriptListContextMenu
+var script_list_manager:ScriptListManager
+var _script_editor_history:Array= []
+
+var main_split_container:HSplitContainer
+var tab_containers:Array[DummyEditorTabContainer] = []
+
 var unselected_split_stylebox:StyleBoxFlat
+
+var _symbol_lookup_flag:=false
+
+var _script_data_dirty:= true
 
 func _get_plugin_name() -> String:
 	return "Script Tabs"
 func _get_plugin_icon() -> Texture2D:
 	return EditorInterface.get_base_control().get_theme_icon("Node", &"EditorIcons")
-
-var script_editor_tab_container:TabContainer
-
-
-var script_list_context_menu:ScriptListContextMenu
-var script_list_manager:ScriptListManager
-
-var main_split_container:HSplitContainer
-var tab_containers:Array[DummyEditorTabContainer] = []
-
-var _script_editor_history := []
-
-var _script_data_dirty:= true
-
 
 func _enable_plugin() -> void:
 	pass
@@ -37,6 +41,8 @@ func _enter_tree() -> void:
 	EditorNodeRef.call_on_ready(_on_editor_node_ref_ready)
 
 func _exit_tree() -> void:
+	Utils.save_cache_data(tab_containers)
+	
 	remove_context_menu_plugin(script_list_context_menu)
 	
 	for t in tab_containers:
@@ -63,6 +69,7 @@ func _on_editor_node_ref_ready():
 	script_list_manager = ScriptListManager.new()
 	script_list_manager.script_list = side_bar.get_child(0).get_child(1)
 	script_list_manager.filter_line_edit = side_bar.get_child(0).get_child(0)
+	script_list_manager.current_script_editor = script_editor_tab_container.get_current_tab_control()
 	
 	script_list_context_menu = ScriptListContextMenu.new()
 	script_list_context_menu.new_tab_container.connect(_on_new_tab_container)
@@ -78,26 +85,76 @@ func _on_editor_node_ref_ready():
 	script_tab_par.add_child(main_split_container)
 	script_tab_par.move_child(main_split_container, 0)
 	
-	script_editor_tab_container.child_order_changed.connect(_on_script_editor_tab_container_child_changed, 1)
-	
 	_create_current_tabs()
+	
+	script_editor_tab_container.child_order_changed.connect(_on_script_editor_tab_container_child_changed, 1)
+	_plugin_initialized = true
 
 
 func _create_current_tabs():
-	if tab_containers.is_empty():
-		_new_tab_container()
-	var tab = tab_containers[0]
-	var script_list = script_list_manager.script_list
-	for i in range(script_list.item_count):
-		var item_data = script_list_manager.get_item_data(i)
-		var editor = script_editor_tab_container.get_child(i)
-		tab.new_tab_script_editor(item_data, editor)
+	script_list_manager.update_cache()
+	var current_editor = script_editor_tab_container.get_current_tab_control()
+	var current_editor_index = current_editor.get_index()
 	
-	if tab.get_tab_count() > 0:
-		tab.current_tab = 0
+	var saved_tab_tooltips = Utils.get_tab_data() # data is Dictionary[path, {tab, idx}]
+	var current_tabs = script_list_manager.item_cache.duplicate()
+	for tooltip in current_tabs.keys():
+		if not saved_tab_tooltips.has(tooltip):
+			saved_tab_tooltips[tooltip] = {}
+	
+	var tooltip_arr_size = saved_tab_tooltips.size()
+	var saved_tooltip_arr = saved_tab_tooltips.keys()
+	saved_tooltip_arr.sort_custom(
+		func(a:String,b:String):
+			var a_data = saved_tab_tooltips.get(a)
+			var b_data = saved_tab_tooltips.get(b)
+			var a_tab = a_data.get(Keys.TAB, 0)
+			var b_tab = b_data.get(Keys.TAB, 0)
+			if a_tab != b_tab:
+				return a_tab < b_tab
+			
+			var a_idx = a_data.get(Keys.IDX, tooltip_arr_size)
+			var b_idx = b_data.get(Keys.IDX, tooltip_arr_size)
+			if a_idx != b_idx:
+				return a_idx < b_idx
+			
+			var a_current_data = current_tabs.get(a, {})
+			var b_current_data = current_tabs.get(b, {})
+			var a_curr_idx = a_current_data.get(Keys.IDX, tooltip_arr_size)
+			var b_curr_idx = b_current_data.get(Keys.IDX, tooltip_arr_size)
+			if a_curr_idx != b_curr_idx:
+				return a_curr_idx < b_curr_idx
+			
+			return a.get_file() < b.get_file()
+			
+			)
+	
+	var current_dummy:DummyEditor
+	for tooltip in saved_tooltip_arr:
+		var data = current_tabs.get(tooltip)
+		if data == null:
+			continue # if not open, just skip
+		var saved_data = saved_tab_tooltips.get(tooltip)
+		var target_saved_tab = int(saved_data.get(Keys.TAB, 0))
+		
+		var idx = data.get(Keys.IDX)
+		var editor = script_editor_tab_container.get_child(idx)
+		var dummy = select_or_add_new_tab(editor, target_saved_tab, false)
+		if current_editor_index == idx:
+			current_dummy = dummy
+	
+	for t in tab_containers:
+		t.check_container_valid()
+	
+	#script_list_manager.activate_item_by_idx(current_dummy.script_editor.get_index())
+	#current_dummy.ensure_script_editor_selected.call_deferred()
+	current_dummy.show()
+	#current_dummy.activate_script_editor()
+	
 
 
 func _on_editor_tab_changed():
+	print("TAB CHANGED")
 	var current = script_editor_tab_container.get_current_tab_control()
 	script_list_manager.current_script_editor = current
 	
@@ -138,22 +195,55 @@ func _set_script_tab_data():
 		t.update_tab_data()
 
 func _on_new_tab_container(script_editor:Control, target_tab:int):
-	if target_tab == tab_containers.size():
-		_new_tab_container()
 	select_or_add_new_tab(script_editor, target_tab)
+	Utils.save_cache_data(tab_containers)
+
+func select_or_add_new_tab(editor_node:Node, target_tab:int=0, activate:=true):
+	var script_list_data = script_list_manager.get_item_data(editor_node.get_index())
+	var dummy_editor = get_dummy_editor_from_editor(editor_node) as DummyEditor
+	
+	if tab_containers.is_empty() or target_tab >= tab_containers.size():
+		_new_tab_container()
+		target_tab = tab_containers.size() - 1
+	
+	var target_tab_control = tab_containers[target_tab]
+	if not is_instance_valid(dummy_editor):
+		dummy_editor = target_tab_control.new_tab_script_editor(script_list_data, editor_node)
+	else:
+		if dummy_editor.get_parent() != target_tab_control:
+			dummy_editor.set_active(false)
+			dummy_editor.reparent(target_tab_control)
+			target_tab_control.set_tab_data(dummy_editor.get_index(), script_list_data)
+	
+	Utils.ensure_connect(dummy_editor.symbol_lookup, _on_symbol_lookup, true)
+	if activate:
+		dummy_editor.set_active(true)
+		dummy_editor.show()
+	
+	return dummy_editor
+
 
 func _new_tab_container():
 	var tab = DummyEditorTabContainer.new()
+	if not _plugin_initialized:
+		tab._defer_connection = true
+	
 	main_split_container.add_child(tab)
-	tab.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+	var panel_sb = StyleBoxEmpty.new()
+	panel_sb.content_margin_top = 2 * EditorInterface.get_editor_scale()
+	tab.add_theme_stylebox_override(&"panel", panel_sb)
 	tab.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tab.script_list_manager = script_list_manager
 	tab.empty_container.connect(_on_empty_container.bind(tab))
+	tab.tabs_changed.connect(_on_container_tab_changed)
 	tab_containers.append(tab)
 
 func _on_empty_container(container:DummyEditorTabContainer):
 	tab_containers.erase(container)
+
+func _on_container_tab_changed():
+	_set_split_styles()
 
 func clean_up_tab_containers():
 	for t in tab_containers:
@@ -163,18 +253,29 @@ func clean_up_tab_containers():
 				t.dummy_editors.erase(editor_node)
 				dummy_editor.queue_free()
 
+func _on_symbol_lookup():
+	if _symbol_lookup_flag: return
+	_symbol_lookup_flag = true
+	await get_tree().process_frame
+	_symbol_lookup_flag = false
 
 func _on_script_editor_tab_container_child_changed():
 	_clean_script_editor_history() #^r not sure about this here, I guess things can be removed without tab changing
 	
 	# get last split and put it in a different one, this makes sense when opening from a link
 	# maybe not when opening from filesystem
-	var target_tab = 0
+	var target_tab = get_current_split().get_index()
 	var last_split = get_last_split()
-	if is_instance_valid(last_split):
-		var last_split_idx = last_split.get_index()
-		if target_tab == last_split_idx:
+	if not is_instance_valid(last_split):
+		target_tab = 0
+	else:
+		target_tab = last_split.get_index()
+		if _symbol_lookup_flag:
+			#var last_split_idx = last_split.get_index()
+			#if target_tab == last_split_idx:
 			target_tab += 1
+	print("TARGET TAB::", target_tab, "::SYMBOL::", _symbol_lookup_flag)
+	
 	
 	for node in script_editor_tab_container.get_children():
 		if not Utils.is_node_script_editor(node):
@@ -189,34 +290,6 @@ func _on_script_editor_tab_container_child_changed():
 	clean_up_tab_containers()
 
 
-func select_or_add_new_tab(editor_node:Node, target_tab:int=0):
-	print("YUYUYU")
-	print("PAR::", editor_node.get_parent())
-	print("INDEX::", editor_node.get_index(), "::CHILD COUNT::", editor_node.get_parent().get_child_count())
-	var script_list_data = script_list_manager.get_item_data(editor_node.get_index())
-	print(script_list_data)
-	var dummy_editor = get_dummy_editor_from_editor(editor_node) as DummyEditor
-	print(dummy_editor)
-	print("YUYUYU")
-	
-	if tab_containers.is_empty() or target_tab >= tab_containers.size():
-		_new_tab_container()
-		target_tab = tab_containers.size() - 1
-	
-	var target_tab_control = tab_containers[target_tab]
-	if not is_instance_valid(dummy_editor):
-		dummy_editor = target_tab_control.new_tab_script_editor(script_list_data, editor_node)
-	else:
-		if dummy_editor.get_parent() != target_tab_control:
-			dummy_editor.set_active(false)
-			var old_tab = dummy_editor.get_parent() as DummyEditorTabContainer
-			old_tab.move_tab_to_new_container(dummy_editor, target_tab_control)
-			target_tab_control.set_tab_data(dummy_editor.get_index(), script_list_data)
-	
-	dummy_editor.set_active(true)
-	dummy_editor.show()
-
-
 func get_dummy_editor_from_editor(editor_node:Node):
 	var dummy_editor
 	for t in tab_containers:
@@ -225,13 +298,13 @@ func get_dummy_editor_from_editor(editor_node:Node):
 			break
 	return dummy_editor
 
-func get_current_split():
+func get_current_split() -> DummyEditorTabContainer:
 	return _get_split()
 
-func get_last_split():
+func get_last_split() -> DummyEditorTabContainer:
 	return _get_split(2)
 
-func _get_split(offset:int=1):
+func _get_split(offset:int=1) -> DummyEditorTabContainer:
 	var last_editor:Node
 	if _script_editor_history.size() < offset:
 		last_editor = script_editor_tab_container.get_current_tab_control()
@@ -244,6 +317,7 @@ func _get_split(offset:int=1):
 			split = t
 			break
 	return split
+
 
 func _set_split_styles():
 	if tab_containers.size() == 1:
@@ -264,9 +338,16 @@ func _set_split_styles():
 
 
 class DummyEditorTabContainer extends TabContainer:
+	var _defer_connection:=false
+	
+	var tab_history:=[]
+	
 	var script_list_manager:ScriptListManager
 	var dummy_editors:Dictionary = {}
 	
+	#var _close_queued:=""
+	
+	signal tabs_changed
 	signal empty_container
 	
 	func _ready() -> void:
@@ -276,14 +357,15 @@ class DummyEditorTabContainer extends TabContainer:
 		tab_bar.tab_close_pressed.connect(_on_tab_closed)
 		tab_bar.tab_rmb_clicked.connect(_on_tab_rmb_clicked, 1)
 		
-		
 		drag_to_rearrange_enabled = true
 		tabs_rearrange_group = 100
 		tab_selected.connect(_on_tab_selected)
 		tab_changed.connect(_on_tab_changed, 1)
 		
-		child_order_changed.connect(_child_order_changed)
-	
+		if _defer_connection: # defer connection during plugin startup to speed things up
+			child_order_changed.connect.call_deferred(_child_order_changed)
+		else:
+			child_order_changed.connect(_child_order_changed)
 	
 	func _child_order_changed():
 		dummy_editors.clear()
@@ -293,11 +375,26 @@ class DummyEditorTabContainer extends TabContainer:
 			dummy_editors[tab.script_editor] = tab
 		
 		check_container_valid()
+		tabs_changed.emit.call_deferred()
 	
 	func check_container_valid():
 		if dummy_editors.is_empty():
 			empty_container.emit()
 			queue_free()
+	
+	func new_tab_script_editor(script_list_data:Dictionary, editor) -> DummyEditor:
+		var dummy_editor = dummy_editors.get(editor)
+		if not is_instance_valid(dummy_editor):
+			dummy_editor = DummyEditor.new()
+			dummy_editor.script_list_data = script_list_data
+			dummy_editor.script_list_manager = script_list_manager
+			dummy_editor.set_script_editor(editor)
+			add_child(dummy_editor)
+			
+		var index = dummy_editor.get_index()
+		set_tab_data(index, script_list_data)
+		dummy_editors[editor] = dummy_editor
+		return dummy_editor
 	
 	
 	func _on_tab_selected(_tab:int):
@@ -305,8 +402,15 @@ class DummyEditorTabContainer extends TabContainer:
 	
 	func _on_tab_changed(tab:int):
 		var dummy_editor = get_tab_control(tab) as DummyEditor
+		if not is_instance_valid(dummy_editor):
+			return
 		if not dummy_editor.is_active: # if it hasn't been activated, will move contents over
 			dummy_editor.soft_activate() # then reselect the current editor, stops empty tabs on close
+		#dummy_editor.set_doc_style_box(true)
+		
+		if dummy_editor in tab_history:
+			tab_history.erase(dummy_editor)
+		tab_history.append(dummy_editor)
 	
 	func activate_current():
 		var dummy_editor = get_current_tab_control() as DummyEditor
@@ -319,28 +423,23 @@ class DummyEditorTabContainer extends TabContainer:
 	func _on_tab_closed(tab:int):
 		var dummy_editor = get_tab_control(tab) as DummyEditor
 		script_list_manager.close_script_by_idx(dummy_editor.get_script_index())
+		
+		await get_tree().process_frame
+		if is_instance_valid(dummy_editor):
+			return
+		
+		#^r this needs to account for when the dialog shows
+		#^r early exit above at least stops accidental tab changes
+		var last_tab = _get_previous_tab()
+		if is_instance_valid(last_tab):
+			last_tab.show()
 	
 	func _on_tab_rmb_clicked(tab:int):
 		var dummy_editor = get_tab_control(tab) as DummyEditor
 		script_list_manager.right_click_by_idx(dummy_editor.get_script_index(), get_global_mouse_position())
 	
 	
-	func new_tab_script_editor(script_list_data:Dictionary, editor):
-		var dummy_editor = get_or_add_empty_tab(script_list_data, editor)
-		return dummy_editor
 	
-	func get_or_add_empty_tab(script_list_data:Dictionary, editor) -> DummyEditor:
-		var dummy_editor = dummy_editors.get(editor)
-		if not is_instance_valid(dummy_editor):
-			dummy_editor = DummyEditor.new_empty(script_list_data)
-			dummy_editor.script_list_manager = script_list_manager
-			dummy_editor.set_script_editor(editor)
-			add_child(dummy_editor)
-			
-		var index = dummy_editor.get_index()
-		set_tab_data(index, script_list_data)
-		dummy_editors[editor] = dummy_editor
-		return dummy_editor
 	
 	
 	func update_tab_data():
@@ -349,17 +448,12 @@ class DummyEditorTabContainer extends TabContainer:
 			var data = script_list_manager.item_cache.get(tooltip)
 			if data != null:
 				set_tab_data(tab.get_index(), data)
-			if tab.script_editor == script_list_manager.current_script_editor:
-				
-				pass
-		
+	
 	
 	func set_tab_data(idx:int, script_list_data:Dictionary):
 		set_tab_title(idx, script_list_data.get(Keys.NAME))
 		set_tab_icon(idx, script_list_data.get(Keys.ICON))
 		set_tab_tooltip(idx, script_list_data.get(Keys.TOOLTIP))
-		#add_theme_icon_override() # modulate somehow?
-	
 	
 	
 	func get_tab_by_data(script_list_data:Dictionary):
@@ -378,8 +472,11 @@ class DummyEditorTabContainer extends TabContainer:
 		remove_child(dummy)
 		dummy.queue_free()
 	
-	func move_tab_to_new_container(dummy_editor:DummyEditor, new_parent:DummyEditorTabContainer):
-		dummy_editor.reparent(new_parent)
+	
+	func _get_previous_tab():
+		var prev_idx = tab_history.size() - 2
+		if prev_idx > -1:
+			return tab_history[prev_idx]
 	
 	func clean_up():
 		for d in dummy_editors.values():
@@ -388,59 +485,72 @@ class DummyEditorTabContainer extends TabContainer:
 
 
 class DummyEditor extends VBoxContainer:
-	var script_list_manager:ScriptListManager
-	
-	var script_list_data:= {}
 	
 	enum EditorType {
 		TEXT_EDITOR,
 		SCRIPT_EDITOR,
 		EDITOR_HELP,
 	}
-	
 	var editor_type:EditorType
 	
-	var script_editor:Control
+	var _initialized:= false
+	var is_active:=false
 	
+	var script_list_manager:ScriptListManager
+	var script_list_data:= {}
+	
+	# editor
+	var script_editor:Control
 	var code_edit:CodeEdit
-	var script_resource:GDScript
-	var script_path:String
+	var rich_text:RichTextLabel
+	var bottom_panel:Control
+	
+	# this is the size of the warnings button
+	var bottom_panel_min_size:= 33 * EditorInterface.get_editor_scale()
+	
+	var _stylebox_doc:StyleBox
+	var _stylebox_doc_overide:StyleBox
 	
 	var _dummy_vsplit:VSplitContainer
 	var _dummy_code_text_editor:DummyCTE
-	var is_text_editor:bool
-	
-	var is_active:=false
-	var _current_editor_check_debounce:=false
-	
 	var _editor_replace_nodes := []
 	
-	static func new_empty(_script_list_data:Dictionary) -> DummyEditor:
-		var ins = new()
-		ins.script_list_data = _script_list_data
-		return ins
+	var _current_editor_check_debounce:=false
 	
+	signal symbol_lookup
 	
 	func set_script_editor(_script_editor:Control):
 		script_editor = _script_editor
 		script_editor.visibility_changed.connect(_on_script_editor_visibility_changed)
+		#visibility_changed.connect(_on_visibility_changed)
 		
 		var script_ed_class = script_editor.get_class()
 		if script_ed_class == &"ScriptTextEditor":
 			editor_type = EditorType.SCRIPT_EDITOR
-			_create_vsplit()
-			_create_code_text(_dummy_vsplit)
-			is_code_edit()
 		elif script_ed_class == &"TextEditor":
 			editor_type = EditorType.TEXT_EDITOR
-			_create_code_text(self)
-			#code_edit = script_editor.get_base_editor()
-			is_code_edit()
 		elif script_ed_class == &"EditorHelp":
 			editor_type = EditorType.EDITOR_HELP
-			var rich_text = script_editor.get_child(0)
-			rich_text.gui_input.connect(_on_rich_text_gui_input)
 	
+	
+	func _initialize():
+		_initialized = true
+		if editor_type == EditorType.EDITOR_HELP:
+			rich_text = script_editor.get_child(0)
+			bottom_panel = script_editor.get_child(2)
+		else:
+			if editor_type == EditorType.SCRIPT_EDITOR:
+				_create_vsplit()
+				_create_code_text(_dummy_vsplit)
+			elif editor_type == EditorType.TEXT_EDITOR:
+				_create_code_text(self)
+			
+			code_edit = script_editor.get_base_editor()
+			for node in script_editor.get_children():
+				if node is Popup:
+					Utils.ensure_connect(node.about_to_popup, _about_to_popup.bind(node), true)
+			var code_text_editor = script_editor.find_children("*","CodeTextEditor", true, false).pop_front()
+			bottom_panel = code_text_editor.get_child(1)
 	
 	func _create_vsplit():
 		_dummy_vsplit = VSplitContainer.new()
@@ -457,7 +567,14 @@ class DummyEditor extends VBoxContainer:
 	
 	func set_active(active:bool):
 		if not is_instance_valid(script_editor):
+			return # necessary for when being deleted
+		if not active and not _initialized:
 			return
+		
+		var hide_sidebar_button = _get_hide_sidebar_button()
+		if is_instance_valid(hide_sidebar_button):
+			var in_left_split = get_parent().get_index() == 0
+			hide_sidebar_button.visible = not active or in_left_split
 		
 		if is_active and active:
 			ensure_script_editor_selected()
@@ -470,26 +587,20 @@ class DummyEditor extends VBoxContainer:
 	
 	
 	func move_children(active:bool):
-		var left_split = get_parent().get_index() == 0
+		if not active and not _initialized:
+			return
+		
+		if active:
+			if is_instance_valid(_dummy_code_text_editor):
+				_dummy_code_text_editor.set_script_editor(script_editor)
 		
 		if editor_type == EditorType.EDITOR_HELP:
 			if active:
-				Utils.reparent_children(script_editor, self)
-				
-				if not left_split:
-					get_child(2).get_child(0).hide()
-				var rich_text = get_child(0) as RichTextLabel
-				#var sb = rich_text.get_theme_stylebox(&"normal").duplicate()
-				#sb.content_margin_left = 50
-				#sb.content_margin_right = 50
-				#rich_text.add_theme_stylebox_override(&"normal", sb)
-			else:
-				if get_child_count() > 0:
-					get_child(2).get_child(0).show()
-					var rich_text = get_child(0) as RichTextLabel
-					rich_text.remove_theme_stylebox_override(&"normal")
-				
-				Utils.reparent_children(self, script_editor)
+				if get_child_count() == 0:
+					Utils.reparent_children(script_editor, self)
+				set_doc_style_box.call_deferred(active)
+			#else: # commenting this stops RichTextLabel from redrawing, seems ok to just free everything
+				#Utils.reparent_children(self, script_editor)
 			
 		elif editor_type == EditorType.TEXT_EDITOR:
 			var code_text_editor = script_editor.find_children("*","CodeTextEditor", true, false).pop_front()
@@ -497,71 +608,105 @@ class DummyEditor extends VBoxContainer:
 				return
 			
 			if active:
-				_dummy_code_text_editor.set_script_editor(script_editor)
 				Utils.reparent_children(code_text_editor, _dummy_code_text_editor)
 				Utils.reparent_children(script_editor, self, [code_text_editor])
-				
-				_dummy_code_text_editor.set_side_panel_button_vis(false, left_split)
 			else:
-				_dummy_code_text_editor.set_side_panel_button_vis(true)
-				
 				Utils.reparent_children(_dummy_code_text_editor, code_text_editor)
 				Utils.reparent_children(self, script_editor, [_dummy_code_text_editor])
 			
-			_dummy_code_text_editor.set_active(active)
-			if is_instance_valid(code_edit):
-				Utils.ensure_connect(code_edit.gui_input, _on_code_edit_gui_input, active)
-			
 		elif editor_type == EditorType.SCRIPT_EDITOR:
-			var code_text_editor = script_editor.find_children("*","CodeTextEditor", true, false).pop_front()
 			var vsplit_container = script_editor.find_children("*","VSplitContainer", true, false).pop_front()
+			var code_text_editor = script_editor.find_children("*","CodeTextEditor", true, false).pop_front()
 			if not is_instance_valid(vsplit_container):
 				return
 			
 			if active:
-				_dummy_code_text_editor.set_script_editor(script_editor)
 				Utils.reparent_children(code_text_editor, _dummy_code_text_editor)
 				Utils.reparent_children(vsplit_container, _dummy_vsplit, [code_text_editor])
 				Utils.reparent_children(script_editor, self, [vsplit_container])
 				
-				var to_add_nodes = [script_editor, vsplit_container]
-				for i in range(2): # HACK: these just stop an error from firing when closing a editor. Trying to get_child that isn't there
-					for par in to_add_nodes:
-						var node = Node.new()
-						par.add_child(node)
-						_editor_replace_nodes.append(node)
-				
-				_dummy_code_text_editor.set_side_panel_button_vis(false, left_split)
+				 # HACK: these just stop an error from firing when closing a editor. Trying to get_child that isn't there
+				Utils.add_filler_nodes([script_editor, vsplit_container], _editor_replace_nodes)
 			else:
-				_dummy_code_text_editor.set_side_panel_button_vis(true)
-				
 				Utils.reparent_children(_dummy_code_text_editor, code_text_editor)
 				Utils.reparent_children(_dummy_vsplit, vsplit_container, [_dummy_code_text_editor])
 				Utils.reparent_children(self, script_editor, [_dummy_vsplit])
-			
-			_dummy_code_text_editor.set_active(active)
-			if is_instance_valid(code_edit):
-				Utils.ensure_connect(code_edit.gui_input, _on_code_edit_gui_input, active)
 		
-		if not active:
+		if is_instance_valid(_dummy_code_text_editor):
+			_dummy_code_text_editor.set_active(active)
+		
+		_set_bottom_panel_size(active)
+		
+		if is_instance_valid(code_edit):
+			Utils.ensure_connect(code_edit.symbol_lookup, _on_symbol_lookup, active)
+			Utils.ensure_connect(code_edit.gui_input, _on_code_edit_gui_input, active)
+		elif is_instance_valid(rich_text):
+			Utils.ensure_connect(rich_text.meta_clicked, _on_rich_text_meta_clicked, active)
+			Utils.ensure_connect(rich_text.gui_input, _on_rich_text_gui_input, active)
+		
+		if active:
+			_code_edit_grab_focus()
+		else:
 			for node in _editor_replace_nodes:
 				if is_instance_valid(node):
 					node.queue_free()
 			_editor_replace_nodes.clear()
 	
 	
+	func ensure_script_editor_selected():
+		if _current_editor_check_debounce:
+			return
+		_current_editor_check_debounce = true
+		var current_idx = script_list_manager.current_script_editor.get_index()
+		if current_idx > -1 and current_idx != get_script_index():
+			move_children(false)
+			is_active = false
+			set_active(true)
+		_current_editor_check_debounce = false
+	
+	func soft_activate():
+		var current_editor_idx = script_list_manager.current_script_editor.get_index()
+		var self_idx = get_script_index()
+		move_children(false)
+		set_active(true)
+		if current_editor_idx != self_idx:
+			script_list_manager.activate_item_by_idx(current_editor_idx)
+	
+	
+	func set_doc_style_box(active:bool):
+		if editor_type != EditorType.EDITOR_HELP or not _initialized:
+			return
+		if active:
+			if not is_instance_valid(_stylebox_doc):
+				_stylebox_doc = rich_text.get_theme_stylebox(&"normal")
+				_stylebox_doc_overide = _stylebox_doc.duplicate()
+			
+			var wrapper_size = max(rich_text.size.x * 0.15, 50)
+			_stylebox_doc_overide.content_margin_left = wrapper_size
+			_stylebox_doc_overide.content_margin_right = wrapper_size
+			rich_text.add_theme_stylebox_override(&"normal", _stylebox_doc_overide)
+		else:
+			if is_instance_valid(_stylebox_doc):
+				rich_text.add_theme_stylebox_override(&"normal", _stylebox_doc)
+	
+	func _get_hide_sidebar_button():
+		if is_instance_valid(bottom_panel):
+			return bottom_panel.get_child(0)
+	
+	func _set_bottom_panel_size(active:bool):
+		if active:
+			bottom_panel.custom_minimum_size.y = bottom_panel_min_size
+		else:
+			bottom_panel.custom_minimum_size.y = 0
+	
+	
 	func _on_script_editor_visibility_changed():
-		#return
 		if script_editor.visible:
 			show()
 	
-	func is_code_edit():
-		code_edit = script_editor.get_base_editor()
-		for node in script_editor.get_children():
-			if node is Popup:
-				node.about_to_popup.connect(_about_to_popup.bind(node))
-	
-	
+	func _on_visibility_changed():
+		print("SET VIS::", visible, "::", get_script_list_tooltip())
+		#set_doc_style_box.call_deferred(visible)
 	
 	func _about_to_popup(popup:Popup):
 		var mouse_pos = DisplayServer.mouse_get_position()
@@ -573,8 +718,6 @@ class DummyEditor extends VBoxContainer:
 	func _on_rich_text_gui_input(event:InputEvent) -> void:
 		if event is InputEventMouseButton:
 			activate_script_editor()
-			#ensure_script_editor_selected()
-			return
 	
 	func _on_code_edit_gui_input(event: InputEvent) -> void:
 		if event is InputEventMouseButton:
@@ -583,29 +726,22 @@ class DummyEditor extends VBoxContainer:
 			if event.keycode == Key.KEY_ENTER:
 				_dummy_code_text_editor.timer.stop()
 	
-	func ensure_script_editor_selected():
-		if _current_editor_check_debounce:
-			return
-		_current_editor_check_debounce = true
-		var current_idx = script_list_manager.current_script_editor.get_index()
-		if current_idx > -1 and current_idx != get_script_index():
-			move_children(false)
-			activate_script_editor()
-			move_children(true)
-		_current_editor_check_debounce = false
+	func _on_symbol_lookup(_symbol:String, _line:int, _col:int):
+		symbol_lookup.emit()
 	
-	func soft_activate():
-		var current_editor_idx = script_list_manager.current_script_editor.get_index()
-		var self_idx = get_script_index()
-		move_children(false)
-		set_active(true)
-		if current_editor_idx != self_idx:
-			script_list_manager.activate_item_by_idx(current_editor_idx)
+	func _on_rich_text_meta_clicked(_arg):
+		if Input.is_key_pressed(KEY_CTRL):
+			symbol_lookup.emit()
+	
 	
 	func activate_script_editor():
-		#var tooltip = get_script_list_tooltip()
-		#script_list_manager.activate_item_by_tooltip(tooltip)
 		script_list_manager.activate_item_by_idx(get_script_index())
+		if not _initialized:
+			_initialize()
+	
+	func _code_edit_grab_focus():
+		if is_instance_valid(code_edit):
+			code_edit.grab_focus()
 	
 	func get_script_index():
 		return script_editor.get_index()
@@ -620,13 +756,13 @@ class DummyEditor extends VBoxContainer:
 		return script_list_data.get(Keys.ICON)
 	
 	func clean_up():
+		set_doc_style_box(false)
 		if is_instance_valid(script_editor):
 			set_active(false)
 		queue_free()
 
 
 class DummyCTE extends VBoxContainer:
-	
 	var code_edit:CodeEdit
 	var timer:Timer
 	
@@ -646,7 +782,6 @@ class DummyCTE extends VBoxContainer:
 		if not is_instance_valid(code_edit):
 			return
 		Utils.ensure_connect(code_edit.text_changed, _on_text_changed, state)
-		#Utils.ensure_connect(, _on_text_changed, state)
 		Utils.ensure_connect(timer.timeout, _on_code_complete_timeout, state)
 	
 	## Needs to be called after moving to, or before moving from
@@ -664,17 +799,14 @@ class DummyCTE extends VBoxContainer:
 	
 	func _on_code_edit_sig():
 		timer.stop()
-	
-	
 
 
 class ScriptListManager:
 	var script_list:ItemList
 	var filter_line_edit:LineEdit
+	var item_cache:= {}
 	
 	var current_script_editor:Node
-	
-	var item_cache:= {}
 	
 	func update_cache():
 		var current_text = filter_line_edit.text
@@ -686,7 +818,8 @@ class ScriptListManager:
 		if current_text != "":
 			filter_line_edit.text = current_text
 			filter_line_edit.text_changed.emit(current_text)
-		
+	
+	
 	func get_current_item():
 		var sel = -1
 		var items = script_list.get_selected_items()
@@ -699,11 +832,7 @@ class ScriptListManager:
 		if data == null:
 			return -1
 		return data.get(Keys.IDX, -1)
-		
-		for i in range(script_list.item_count):
-			if tooltip == script_list.get_item_tooltip(i):
-				return i
-		return -1
+	
 	
 	func get_current_item_data():
 		var sel = get_current_item()
@@ -777,6 +906,32 @@ class Utils:
 			if c in excludes:
 				continue
 			c.reparent(to)
+	
+	static func add_filler_nodes(nodes_to_add_to:Array, reference_array:Array, amount:=2):
+		for i in range(amount): # HACK: these just stop an error from firing when closing a editor. Trying to get_child that isn't there
+			for par in nodes_to_add_to:
+				var node = Node.new()
+				par.add_child(node)
+				reference_array.append(node)
+	
+	static func get_tab_data():
+		DirAccess.make_dir_recursive_absolute(Keys.TAB_CACHE_PATH.get_base_dir())
+		if not FileAccess.file_exists(Keys.TAB_CACHE_PATH):
+			return {}
+		var data = UFile.read_from_json(Keys.TAB_CACHE_PATH)
+		return data
+	
+	static func save_cache_data(tab_container_array:Array[DummyEditorTabContainer]):
+		DirAccess.make_dir_recursive_absolute(Keys.TAB_CACHE_PATH.get_base_dir())
+		var data = {}
+		for i in range(tab_container_array.size()):
+			var tab_container = tab_container_array[i]
+			var dummy_editors = tab_container.dummy_editors.values()
+			for ni in range(dummy_editors.size()):
+				var dummy = dummy_editors[ni] as DummyEditor
+				data[dummy.get_script_list_tooltip()] = {Keys.TAB: i, Keys.IDX: ni}
+		
+		UFile.write_to_json(data, Keys.TAB_CACHE_PATH)
 
 
 class Keys:
@@ -786,6 +941,12 @@ class Keys:
 	const ICON_MOD = &"icon_mod"
 	const IDX = &"idx"
 	
+	const TAB = &"tab"
+	
+	const STYLEBOX_DOC = &"stylebox_doc"
+	
 	const CODE_COMPLETE_CALLABLE = &"CodeTextEditor::_code_complete_timer_timeout"
 	
 	const SCRIPT_EDITOR_CLASSES = [&"ScriptTextEditor", &"TextEditor", &"EditorHelp"]
+	
+	const TAB_CACHE_PATH = &"res://.godot/addons/script_tabs/current_layout.json"
