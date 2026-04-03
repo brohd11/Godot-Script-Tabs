@@ -4,6 +4,9 @@ extends EditorPlugin
 const UFile = ALibRuntime.Utils.UFile
 const UNode = ALibRuntime.Utils.UNode
 
+const ScriptListManager = ALibEditor.Singletons.ScriptListManager
+const SLKeys = ScriptListManager.Keys
+
 const ScriptListContextMenu = preload("res://addons/script_tabs/src/editor_plugins/context_menu.gd")
 
 var _plugin_initialized:=false
@@ -65,11 +68,8 @@ func _on_editor_node_ref_ready():
 	script_editor_tab_container = EditorNodeRef.get_node_ref(EditorNodeRef.Nodes.SCRIPT_EDITOR_TAB_CONTAINER)
 	script_editor_tab_container.hide()
 	
-	var side_bar = EditorNodeRef.get_node_ref(EditorNodeRef.Nodes.SCRIPT_EDITOR_SIDEBAR_V_SPLIT)
-	script_list_manager = ScriptListManager.new()
-	script_list_manager.script_list = side_bar.get_child(0).get_child(1)
-	script_list_manager.filter_line_edit = side_bar.get_child(0).get_child(0)
-	script_list_manager.current_script_editor = script_editor_tab_container.get_current_tab_control()
+	#var side_bar = EditorNodeRef.get_node_ref(EditorNodeRef.Nodes.SCRIPT_EDITOR_SIDEBAR_V_SPLIT)
+	script_list_manager = ScriptListManager.get_instance()
 	
 	script_list_context_menu = ScriptListContextMenu.new()
 	script_list_context_menu.new_tab_container.connect(_on_new_tab_container)
@@ -113,15 +113,15 @@ func _create_current_tabs():
 			if a_tab != b_tab:
 				return a_tab < b_tab
 			
-			var a_idx = a_data.get(Keys.IDX, tooltip_arr_size)
-			var b_idx = b_data.get(Keys.IDX, tooltip_arr_size)
+			var a_idx = a_data.get(Keys.TAB_IDX, tooltip_arr_size)
+			var b_idx = b_data.get(Keys.TAB_IDX, tooltip_arr_size)
 			if a_idx != b_idx:
 				return a_idx < b_idx
 			
 			var a_current_data = current_tabs.get(a, {})
 			var b_current_data = current_tabs.get(b, {})
-			var a_curr_idx = a_current_data.get(Keys.IDX, tooltip_arr_size)
-			var b_curr_idx = b_current_data.get(Keys.IDX, tooltip_arr_size)
+			var a_curr_idx = a_current_data.get(Keys.TAB_IDX, tooltip_arr_size)
+			var b_curr_idx = b_current_data.get(Keys.TAB_IDX, tooltip_arr_size)
 			if a_curr_idx != b_curr_idx:
 				return a_curr_idx < b_curr_idx
 			
@@ -137,7 +137,7 @@ func _create_current_tabs():
 		var saved_data = saved_tab_tooltips.get(tooltip)
 		var target_saved_tab = int(saved_data.get(Keys.TAB, 0))
 		
-		var idx = data.get(Keys.IDX)
+		var idx = data.get(Keys.TAB_IDX)
 		var editor = script_editor_tab_container.get_child(idx)
 		var dummy = select_or_add_new_tab(editor, target_saved_tab, false)
 		if current_editor_index == idx:
@@ -156,8 +156,6 @@ func _create_current_tabs():
 func _on_editor_tab_changed():
 	print("TAB CHANGED")
 	var current = script_editor_tab_container.get_current_tab_control()
-	script_list_manager.current_script_editor = current
-	
 	if current in _script_editor_history:
 		_script_editor_history.erase(current)
 	_script_editor_history.append(current)
@@ -190,7 +188,7 @@ func _on_validate():
 	_set_script_tab_data.call_deferred()
 
 func _set_script_tab_data():
-	await script_list_manager.update_cache()
+	#await script_list_manager.update_cache()
 	for t in tab_containers:
 		t.update_tab_data()
 
@@ -280,8 +278,6 @@ func _on_script_editor_tab_container_child_changed():
 	for node in script_editor_tab_container.get_children():
 		if not Utils.is_node_script_editor(node):
 			continue
-		#if node.visible:
-			#script_list_manager.current_script_editor = node
 		
 		var dummy_editor = get_dummy_editor_from_editor(node)
 		if not is_instance_valid(dummy_editor):
@@ -439,25 +435,21 @@ class DummyEditorTabContainer extends TabContainer:
 		script_list_manager.right_click_by_idx(dummy_editor.get_script_index(), get_global_mouse_position())
 	
 	
-	
-	
-	
 	func update_tab_data():
 		for tab:DummyEditor in get_children():
-			var tooltip = tab.get_script_list_tooltip()
-			var data = script_list_manager.item_cache.get(tooltip)
+			var data = script_list_manager.item_cache.get(tab.get_script_index())
 			if data != null:
 				set_tab_data(tab.get_index(), data)
 	
 	
 	func set_tab_data(idx:int, script_list_data:Dictionary):
-		set_tab_title(idx, script_list_data.get(Keys.NAME))
-		set_tab_icon(idx, script_list_data.get(Keys.ICON))
-		set_tab_tooltip(idx, script_list_data.get(Keys.TOOLTIP))
+		set_tab_title(idx, script_list_data.get(SLKeys.NAME))
+		set_tab_icon(idx, script_list_data.get(SLKeys.ICON))
+		set_tab_tooltip(idx, script_list_data.get(SLKeys.TOOLTIP))
 	
 	
 	func get_tab_by_data(script_list_data:Dictionary):
-		var tooltip = script_list_data.get(Keys.TOOLTIP)
+		var tooltip = script_list_data.get(SLKeys.TOOLTIP)
 		return dummy_editors.get(tooltip)
 	
 	func get_tab_by_editor(editor):
@@ -657,7 +649,7 @@ class DummyEditor extends VBoxContainer:
 		if _current_editor_check_debounce:
 			return
 		_current_editor_check_debounce = true
-		var current_idx = script_list_manager.current_script_editor.get_index()
+		var current_idx = script_list_manager.get_current_script_editor_index()
 		if current_idx > -1 and current_idx != get_script_index():
 			move_children(false)
 			is_active = false
@@ -665,7 +657,7 @@ class DummyEditor extends VBoxContainer:
 		_current_editor_check_debounce = false
 	
 	func soft_activate():
-		var current_editor_idx = script_list_manager.current_script_editor.get_index()
+		var current_editor_idx = script_list_manager.get_current_script_editor_index()
 		var self_idx = get_script_index()
 		move_children(false)
 		set_active(true)
@@ -747,13 +739,13 @@ class DummyEditor extends VBoxContainer:
 		return script_editor.get_index()
 	
 	func get_script_list_tooltip():
-		return script_list_data.get(Keys.TOOLTIP)
+		return script_list_data.get(SLKeys.TOOLTIP)
 	
 	func get_script_list_name():
-		return script_list_data.get(Keys.NAME)
+		return script_list_data.get(SLKeys.NAME)
 	
 	func get_script_list_icon():
-		return script_list_data.get(Keys.ICON)
+		return script_list_data.get(SLKeys.ICON)
 	
 	func clean_up():
 		set_doc_style_box(false)
@@ -801,92 +793,6 @@ class DummyCTE extends VBoxContainer:
 		timer.stop()
 
 
-class ScriptListManager:
-	var script_list:ItemList
-	var filter_line_edit:LineEdit
-	var item_cache:= {}
-	
-	var current_script_editor:Node
-	
-	func update_cache():
-		var current_text = filter_line_edit.text
-		if current_text != "":
-			filter_line_edit.clear()
-		
-		item_cache = get_all_script_data()
-		
-		if current_text != "":
-			filter_line_edit.text = current_text
-			filter_line_edit.text_changed.emit(current_text)
-	
-	
-	func get_current_item():
-		var sel = -1
-		var items = script_list.get_selected_items()
-		if not items.is_empty():
-			sel = items[0]
-		return sel
-	
-	func get_item_by_tooltip(tooltip:String):
-		var data = item_cache.get(tooltip)
-		if data == null:
-			return -1
-		return data.get(Keys.IDX, -1)
-	
-	
-	func get_current_item_data():
-		var sel = get_current_item()
-		if sel > -1:
-			return get_item_data(sel)
-		return {}
-	
-	func get_item_data(idx:int):
-		var text = script_list.get_item_text(idx)
-		var tooltip = script_list.get_item_tooltip(idx)
-		var icon = script_list.get_item_icon(idx)
-		var icon_mod = script_list.get_item_icon_modulate(idx)
-		return {Keys.NAME:text, Keys.TOOLTIP:tooltip, Keys.ICON: icon, Keys.ICON_MOD: icon_mod, Keys.IDX: idx}
-	
-	
-	func close_script_by_idx(idx:int):
-		script_list.item_clicked.emit(idx, Vector2(), MOUSE_BUTTON_MIDDLE)
-	
-	func right_click_by_idx(idx:int, position:Vector2):
-		script_list.item_clicked.emit(idx, position, MOUSE_BUTTON_RIGHT)
-	
-	func activate_item_by_idx(idx:int):
-		script_list.item_selected.emit(idx)
-	
-	
-	func close_script_by_tooltip(tooltip:String):
-		var idx = get_item_by_tooltip(tooltip)
-		if idx == -1:
-			printerr("COULD NOT GET SCRIPT::CLOSE::", tooltip)
-			return
-		script_list.item_clicked.emit(idx, Vector2(), MOUSE_BUTTON_MIDDLE)
-	
-	func right_click_by_tooltip(tooltip:String, position:Vector2):
-		var idx = get_item_by_tooltip(tooltip)
-		if idx == -1:
-			printerr("COULD NOT GET SCRIPT::RIGHT CLICK::", tooltip)
-			return
-		script_list.item_clicked.emit(idx, position, MOUSE_BUTTON_RIGHT)
-	
-	func activate_item_by_tooltip(tooltip:String):
-		var idx = get_item_by_tooltip(tooltip)
-		if idx == -1:
-			printerr("COULD NOT GET SCRIPT::ACTIVATE::", tooltip)
-			return
-		
-		script_list.item_selected.emit(idx)
-	
-	func get_all_script_data():
-		var all_data = {}
-		for i in range(script_list.item_count):
-			var tooltip = script_list.get_item_tooltip(i)
-			all_data[tooltip] = get_item_data(i)
-		return all_data
-
 
 class Utils:
 	static func ensure_connect(_signal:Signal, callable:Callable, _connect:bool):
@@ -929,18 +835,14 @@ class Utils:
 			var dummy_editors = tab_container.dummy_editors.values()
 			for ni in range(dummy_editors.size()):
 				var dummy = dummy_editors[ni] as DummyEditor
-				data[dummy.get_script_list_tooltip()] = {Keys.TAB: i, Keys.IDX: ni}
+				data[dummy.get_script_list_tooltip()] = {Keys.TAB: i, Keys.TAB_IDX: ni}
 		
 		UFile.write_to_json(data, Keys.TAB_CACHE_PATH)
 
 
 class Keys:
-	const NAME = &"name"
-	const TOOLTIP = &"tooltip"
-	const ICON = &"icon"
-	const ICON_MOD = &"icon_mod"
-	const IDX = &"idx"
 	
+	const TAB_IDX = &"tab_idx"
 	const TAB = &"tab"
 	
 	const STYLEBOX_DOC = &"stylebox_doc"
