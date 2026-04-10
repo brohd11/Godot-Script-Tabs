@@ -92,20 +92,21 @@ func _on_editor_node_ref_ready():
 
 
 func _create_current_tabs():
+	script_list_manager.clear_script_list_filter()
 	script_list_manager.update_cache()
 	var current_editor = script_editor_tab_container.get_current_tab_control()
 	var current_editor_index = current_editor.get_index()
 	
 	var saved_tab_tooltips = Utils.get_tab_data() # data is Dictionary[path, {tab, idx}]
-	var current_tabs = script_list_manager.item_cache.duplicate()
+	var current_tabs = script_list_manager.get_all_script_data_tooltip_key()
 	for tooltip in current_tabs.keys():
-		if not saved_tab_tooltips.has(tooltip):
+		if not saved_tab_tooltips.has(tooltip): # converted to uid in get_tab_data
 			saved_tab_tooltips[tooltip] = {}
 	
 	var tooltip_arr_size = saved_tab_tooltips.size()
 	var saved_tooltip_arr = saved_tab_tooltips.keys()
 	saved_tooltip_arr.sort_custom(
-		func(a:String,b:String):
+		func(a,b):
 			var a_data = saved_tab_tooltips.get(a)
 			var b_data = saved_tab_tooltips.get(b)
 			var a_tab = a_data.get(Keys.TAB, 0)
@@ -137,7 +138,7 @@ func _create_current_tabs():
 		var saved_data = saved_tab_tooltips.get(tooltip)
 		var target_saved_tab = int(saved_data.get(Keys.TAB, 0))
 		
-		var idx = data.get(Keys.TAB_IDX)
+		var idx = data.get(SLKeys.SCRIPT_IDX)
 		var editor = script_editor_tab_container.get_child(idx)
 		var dummy = select_or_add_new_tab(editor, target_saved_tab, false)
 		if current_editor_index == idx:
@@ -148,7 +149,8 @@ func _create_current_tabs():
 	
 	#script_list_manager.activate_item_by_idx(current_dummy.script_editor.get_index())
 	#current_dummy.ensure_script_editor_selected.call_deferred()
-	current_dummy.show()
+	if is_instance_valid(current_dummy):
+		current_dummy.show()
 	#current_dummy.activate_script_editor()
 	
 
@@ -563,6 +565,9 @@ class DummyEditor extends VBoxContainer:
 		if not active and not _initialized:
 			return
 		
+		if active: # ensure factory script list has all items for activating
+			script_list_manager.clear_script_list_filter()
+		
 		var hide_sidebar_button = _get_hide_sidebar_button()
 		if is_instance_valid(hide_sidebar_button):
 			var in_left_split = get_parent().get_index() == 0
@@ -825,6 +830,9 @@ class Utils:
 		if not FileAccess.file_exists(Keys.TAB_CACHE_PATH):
 			return {}
 		var data = UFile.read_from_json(Keys.TAB_CACHE_PATH)
+		for key in data.keys():
+			if key.begins_with("uid"):
+				data[UFile.uid_to_path(key)] = data[key]
 		return data
 	
 	static func save_cache_data(tab_container_array:Array[DummyEditorTabContainer]):
@@ -835,7 +843,10 @@ class Utils:
 			var dummy_editors = tab_container.dummy_editors.values()
 			for ni in range(dummy_editors.size()):
 				var dummy = dummy_editors[ni] as DummyEditor
-				data[dummy.get_script_list_tooltip()] = {Keys.TAB: i, Keys.TAB_IDX: ni}
+				var tooltip = dummy.get_script_list_tooltip()
+				if tooltip.begins_with("res://"):
+					tooltip = UFile.path_to_uid(tooltip)
+				data[tooltip] = {Keys.TAB: i, Keys.TAB_IDX: ni}
 		
 		UFile.write_to_json(data, Keys.TAB_CACHE_PATH)
 
