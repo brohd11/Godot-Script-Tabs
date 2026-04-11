@@ -85,6 +85,8 @@ func _on_editor_node_ref_ready():
 	script_tab_par.add_child(main_split_container)
 	script_tab_par.move_child(main_split_container, 0)
 	
+	EditorNodeRef.refresh_dynamic_refs()
+	
 	_create_current_tabs()
 	
 	script_editor_tab_container.child_order_changed.connect(_on_script_editor_tab_container_child_changed, 1)
@@ -95,7 +97,9 @@ func _create_current_tabs():
 	script_list_manager.clear_script_list_filter()
 	script_list_manager.update_cache()
 	var current_editor = script_editor_tab_container.get_current_tab_control()
-	var current_editor_index = current_editor.get_index()
+	var current_editor_index = -1
+	if is_instance_valid(current_editor):
+		current_editor_index = current_editor.get_index()
 	
 	var saved_tab_tooltips = Utils.get_tab_data() # data is Dictionary[path, {tab, idx}]
 	var current_tabs = script_list_manager.get_all_script_data_tooltip_key()
@@ -264,7 +268,11 @@ func _on_script_editor_tab_container_child_changed():
 	
 	# get last split and put it in a different one, this makes sense when opening from a link
 	# maybe not when opening from filesystem
-	var target_tab = get_current_split().get_index()
+	var target_tab = 0
+	var current_split = get_current_split()
+	if is_instance_valid(current_split):
+		target_tab = current_split.get_index()
+	
 	var last_split = get_last_split()
 	if not is_instance_valid(last_split):
 		target_tab = 0
@@ -274,7 +282,8 @@ func _on_script_editor_tab_container_child_changed():
 			#var last_split_idx = last_split.get_index()
 			#if target_tab == last_split_idx:
 			target_tab += 1
-	print("TARGET TAB::", target_tab, "::SYMBOL::", _symbol_lookup_flag)
+	
+	#print("TARGET TAB::", target_tab, "::SYMBOL::", _symbol_lookup_flag)
 	
 	
 	for node in script_editor_tab_container.get_children():
@@ -308,6 +317,9 @@ func _get_split(offset:int=1) -> DummyEditorTabContainer:
 		last_editor = script_editor_tab_container.get_current_tab_control()
 	else:
 		last_editor = _script_editor_history[_script_editor_history.size() - offset]
+	
+	if tab_containers.is_empty():
+		return
 	
 	var split = tab_containers[0]
 	for t in tab_containers:
@@ -394,7 +406,6 @@ class DummyEditorTabContainer extends TabContainer:
 		dummy_editors[editor] = dummy_editor
 		return dummy_editor
 	
-	
 	func _on_tab_selected(_tab:int):
 		activate_current.call_deferred()
 	
@@ -430,6 +441,7 @@ class DummyEditorTabContainer extends TabContainer:
 		#^r early exit above at least stops accidental tab changes
 		var last_tab = _get_previous_tab()
 		if is_instance_valid(last_tab):
+			print("SHOWING LAST")
 			last_tab.show()
 	
 	func _on_tab_rmb_clicked(tab:int):
