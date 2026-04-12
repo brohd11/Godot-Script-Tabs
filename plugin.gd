@@ -1,11 +1,14 @@
 @tool
 extends EditorPlugin
+#! remote
 
-const UFile = ALibRuntime.Utils.UFile
-const UNode = ALibRuntime.Utils.UNode
+const UFile = preload("res://addons/addon_lib/brohd/alib_runtime/utils/u_file.gd")
+const UNode = preload("res://addons/addon_lib/brohd/alib_runtime/utils/u_node.gd")
 
-const ScriptListManager = ALibEditor.Singletons.ScriptListManager
+const ScriptListManager = preload("res://addons/addon_lib/brohd/alib_editor/misc/script_list/script_list_manager.gd")
 const SLKeys = ScriptListManager.Keys
+
+const SplitWrapper = preload("res://addons/addon_lib/brohd/alib_runtime/ui/container/split_wrapper/split_wrapper.gd")
 
 const ScriptListContextMenu = preload("res://addons/script_tabs/src/editor_plugins/context_menu.gd")
 
@@ -19,7 +22,7 @@ var script_list_context_menu:ScriptListContextMenu
 var script_list_manager:ScriptListManager
 var _script_editor_history:Array= []
 
-var main_split_container:HSplitContainer
+var main_split_container:Container
 var tab_containers:Array[DummyEditorTabContainer] = []
 
 var unselected_split_stylebox:StyleBoxFlat
@@ -70,6 +73,7 @@ func _on_editor_node_ref_ready():
 	
 	#var side_bar = EditorNodeRef.get_node_ref(EditorNodeRef.Nodes.SCRIPT_EDITOR_SIDEBAR_V_SPLIT)
 	script_list_manager = ScriptListManager.get_instance()
+	script_list_manager.cache_updated.connect(_on_script_list_manager_cache_updated)
 	
 	script_list_context_menu = ScriptListContextMenu.new()
 	script_list_context_menu.new_tab_container.connect(_on_new_tab_container)
@@ -77,8 +81,8 @@ func _on_editor_node_ref_ready():
 	script_list_context_menu.tab_containers = tab_containers
 	add_context_menu_plugin(EditorContextMenuPlugin.CONTEXT_SLOT_SCRIPT_EDITOR, script_list_context_menu)
 	
-	
-	main_split_container = HSplitContainer.new()
+	main_split_container = SplitWrapper.new()
+	#main_split_container = HSplitContainer.new()
 	main_split_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	
 	var script_tab_par = script_editor_tab_container.get_parent()
@@ -160,7 +164,7 @@ func _create_current_tabs():
 
 
 func _on_editor_tab_changed():
-	print("TAB CHANGED")
+	#print("TAB CHANGED")
 	var current = script_editor_tab_container.get_current_tab_control()
 	if current in _script_editor_history:
 		_script_editor_history.erase(current)
@@ -184,12 +188,16 @@ func _clean_script_editor_history():
 	while _script_editor_history.size() > 5:
 		_script_editor_history.pop_front()
 
+func _on_script_list_manager_cache_updated():
+	_set_script_tab_data()
 
 func _on_filesystem_changed():
+	return
 	#_script_data_dirty = true
 	_set_script_tab_data.call_deferred()
 
 func _on_validate():
+	return
 	#_script_data_dirty = true
 	_set_script_tab_data.call_deferred()
 
@@ -232,7 +240,8 @@ func _new_tab_container():
 	if not _plugin_initialized:
 		tab._defer_connection = true
 	
-	main_split_container.add_child(tab)
+	main_split_container.add_split(tab)
+	#main_split_container.add_child(tab)
 	var panel_sb = StyleBoxEmpty.new()
 	panel_sb.content_margin_top = 2 * EditorInterface.get_editor_scale()
 	tab.add_theme_stylebox_override(&"panel", panel_sb)
@@ -437,11 +446,12 @@ class DummyEditorTabContainer extends TabContainer:
 		if is_instance_valid(dummy_editor):
 			return
 		
+		script_list_manager.update_cache()
 		#^r this needs to account for when the dialog shows
 		#^r early exit above at least stops accidental tab changes
 		var last_tab = _get_previous_tab()
 		if is_instance_valid(last_tab):
-			print("SHOWING LAST")
+			#print("SHOWING LAST")
 			last_tab.show()
 	
 	func _on_tab_rmb_clicked(tab:int):
@@ -714,7 +724,8 @@ class DummyEditor extends VBoxContainer:
 			show()
 	
 	func _on_visibility_changed():
-		print("SET VIS::", visible, "::", get_script_list_tooltip())
+		#print("SET VIS::", visible, "::", get_script_list_tooltip())
+		pass
 		#set_doc_style_box.call_deferred(visible)
 	
 	func _about_to_popup(popup:Popup):
@@ -753,6 +764,8 @@ class DummyEditor extends VBoxContainer:
 			code_edit.grab_focus()
 	
 	func get_script_index():
+		if not is_instance_valid(script_editor):
+			return -1
 		return script_editor.get_index()
 	
 	func get_script_list_tooltip():

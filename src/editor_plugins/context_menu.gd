@@ -1,6 +1,7 @@
 extends EditorContextMenuPlugin
 
-const UResource = ALibRuntime.Utils.UResource
+#const UResource = preload("res://addons/addon_lib/brohd/alib_runtime/utils/u_resource.gd")
+const UTexture = preload("res://addons/addon_lib/brohd/alib_runtime/utils/u_texture.gd") # ALibRuntime.Utils.UTexture
 
 var menu_icon:Texture2D
 
@@ -14,7 +15,7 @@ func _popup_menu(paths: PackedStringArray) -> void:
 	
 	if not is_instance_valid(menu_icon):
 		var raw_icon = EditorInterface.get_editor_theme().get_icon(&"HBoxContainer", &"EditorIcons")
-		menu_icon = UResource.get_modulated_icon(raw_icon)
+		menu_icon = UTexture.get_modulated_icon(raw_icon)
 	
 	var current_editor = script_editor_tab_container.get_current_tab_control()
 	
