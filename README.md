@@ -3,9 +3,9 @@
 Simple tab with split container plugin for Godot 4.4+
 Working on Linux, Mac, Windows
 
-*Be sure to download the zip in releases, not the repo source code.*
+### **Be sure to download the zip in releases, not the repo source code.**
 
-Right click the tab or sidebar item list will show an "Open In Split" popup. You can move the selected script to an existing split or new split here.
+Righting click the tab or sidebar item list will show an "Open In Split" popup. You can move the selected script to an existing split or new split here.
 
 Drag to rearrange tabs between splits. Empty splits will free themselves.
 
