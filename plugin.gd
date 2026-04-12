@@ -33,14 +33,7 @@ var _script_data_dirty:= true
 
 func _get_plugin_name() -> String:
 	return "Script Tabs"
-func _get_plugin_icon() -> Texture2D:
-	return EditorInterface.get_base_control().get_theme_icon("Node", &"EditorIcons")
 
-func _enable_plugin() -> void:
-	pass
-
-func _disable_plugin() -> void:
-	pass
 
 func _enter_tree() -> void:
 	await get_tree().create_timer(1).timeout
