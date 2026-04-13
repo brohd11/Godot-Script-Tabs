@@ -2,8 +2,8 @@
 extends EditorPlugin
 #! remote
 
-const UFile = preload("res://addons/addon_lib/brohd/alib_runtime/utils/u_file.gd")
-const UNode = preload("res://addons/addon_lib/brohd/alib_runtime/utils/u_node.gd")
+const UFile = preload("uid://gs632l1nhxaf") #! resolve ALibRuntime.Utils.UFile
+const UNode = preload("uid://dsywt12xnn7oh") #! resolve ALibRuntime.Utils.UNode
 
 const ScriptListManager = preload("res://addons/addon_lib/brohd/alib_editor/misc/script_list/script_list_manager.gd")
 const SLKeys = ScriptListManager.Keys
@@ -439,11 +439,12 @@ class DummyEditorTabContainer extends TabContainer:
 		var dummy_editor = get_tab_control(tab) as DummyEditor
 		script_list_manager.close_script_by_idx(dummy_editor.get_script_index())
 		
+		script_list_manager.update_cache()
 		await get_tree().process_frame
 		if is_instance_valid(dummy_editor):
 			return
 		
-		script_list_manager.update_cache()
+		#script_list_manager.update_cache()
 		#^r this needs to account for when the dialog shows
 		#^r early exit above at least stops accidental tab changes
 		var last_tab = _get_previous_tab()
@@ -464,7 +465,10 @@ class DummyEditorTabContainer extends TabContainer:
 	
 	
 	func set_tab_data(idx:int, script_list_data:Dictionary):
-		set_tab_title(idx, script_list_data.get(SLKeys.NAME))
+		var title = script_list_data.get(SLKeys.NAME) as String
+		if title.count("/") > 2 or title.length() > 40: # super long names can be trimmed
+			title = "..." + "/" + title.get_file()
+		set_tab_title(idx, title)
 		set_tab_icon(idx, script_list_data.get(SLKeys.ICON))
 		set_tab_tooltip(idx, script_list_data.get(SLKeys.TOOLTIP))
 	

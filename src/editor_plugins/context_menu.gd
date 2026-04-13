@@ -1,7 +1,6 @@
 extends EditorContextMenuPlugin
 
-#const UResource = preload("res://addons/addon_lib/brohd/alib_runtime/utils/u_resource.gd")
-const UTexture = preload("res://addons/addon_lib/brohd/alib_runtime/utils/u_texture.gd") # ALibRuntime.Utils.UTexture
+const UTexture = preload("uid://ddu76iygjkxih") #! resolve ALibRuntime.Utils.UTexture
 
 var menu_icon:Texture2D
 
