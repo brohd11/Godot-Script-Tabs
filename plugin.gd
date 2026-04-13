@@ -204,6 +204,10 @@ func _on_new_tab_container(script_editor:Control, target_tab:int):
 	Utils.save_cache_data(tab_containers)
 
 func select_or_add_new_tab(editor_node:Node, target_tab:int=0, activate:=true):
+	if script_list_manager.script_list_filtering():
+		script_list_manager.clear_script_list_filter()
+		script_list_manager.update_cache()
+	
 	var script_list_data = script_list_manager.get_item_data(editor_node.get_index())
 	var dummy_editor = get_dummy_editor_from_editor(editor_node) as DummyEditor
 	
