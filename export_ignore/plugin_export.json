@@ -10,7 +10,9 @@
 				"files": []
 			},
 			"export_folder": "script-tabs{{version=script_tabs}}/script_tabs",
-			"other_transfers": [],
+			"other_transfers": [
+				{"to": "res://addons/script_tabs/src/remote/.gdignore"}
+			],
 			"parser_overide_settings": {
 				"parse_cs": {
 

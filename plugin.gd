@@ -1,4 +1,4 @@
-@tool
+@tool # sc
 extends EditorPlugin
 #! remote
 
@@ -804,7 +804,9 @@ class DummyCTE extends VBoxContainer:
 	func set_active(state:bool):
 		if not is_instance_valid(code_edit):
 			return
-		Utils.ensure_connect(code_edit.text_changed, _on_text_changed, state)
+		code_edit.code_completion_enabled = state
+		Utils.ensure_connect(code_edit.code_completion_requested, _on_text_changed, state)
+		Utils.ensure_connect(code_edit.text_changed, _on_text_changed, state) # using code comp request seems better
 		Utils.ensure_connect(timer.timeout, _on_code_complete_timeout, state)
 	
 	## Needs to be called after moving to, or before moving from
@@ -814,7 +816,11 @@ class DummyCTE extends VBoxContainer:
 		if get_child_count() > 0:
 			get_child(1).get_child(0).visible = vis
 	
+	func _on_code_completion_requested():
+		timer.start()
+	
 	func _on_text_changed():
+		return
 		timer.start()
 	
 	func _on_code_complete_timeout():
