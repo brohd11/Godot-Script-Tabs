@@ -1,4 +1,4 @@
-@tool # sc
+@tool
 extends EditorPlugin
 #! remote
 
@@ -31,6 +31,8 @@ var _symbol_lookup_flag:=false
 
 var _script_data_dirty:= true
 
+
+
 func _get_plugin_name() -> String:
 	return "Script Tabs"
 
@@ -40,7 +42,7 @@ func _enter_tree() -> void:
 	EditorNodeRef.call_on_ready(_on_editor_node_ref_ready)
 
 func _exit_tree() -> void:
-	Utils.save_cache_data(tab_containers)
+	save_cache_data()
 	
 	remove_context_menu_plugin(script_list_context_menu)
 	
@@ -91,14 +93,16 @@ func _on_editor_node_ref_ready():
 
 
 func _create_current_tabs():
-	script_list_manager.clear_script_list_filter()
-	script_list_manager.update_cache()
+	#script_list_manager.clear_script_list_filter()
+	script_list_manager.update_cache(true)
 	var current_editor = script_editor_tab_container.get_current_tab_control()
 	var current_editor_index = -1
 	if is_instance_valid(current_editor):
 		current_editor_index = current_editor.get_index()
 	
-	var saved_tab_tooltips = Utils.get_tab_data() # data is Dictionary[path, {tab, idx}]
+	var saved_tab_tooltips = Utils.get_tab_data() # data is Dictionary[path, {tab, idx}] # also includes meta
+	var metadata = saved_tab_tooltips.get(Keys.META_DATA, {})
+	saved_tab_tooltips.erase(Keys.META_DATA)
 	var current_tabs = script_list_manager.get_all_script_data_tooltip_key()
 	for tooltip in current_tabs.keys():
 		if not saved_tab_tooltips.has(tooltip): # converted to uid in get_tab_data
@@ -131,6 +135,13 @@ func _create_current_tabs():
 			
 			)
 	
+	var selected_scripts = metadata.get(Keys.SELECTED_SCRIPTS, {})
+	for key in selected_scripts.keys(): # path is key, value is split
+		if key.is_absolute_path():
+			selected_scripts[UFile.uid_to_path(key)] = selected_scripts[key]
+		selected_scripts.erase(key)
+	print(selected_scripts)
+	var tabs_to_show := []
 	var current_dummy:DummyEditor
 	for tooltip in saved_tooltip_arr:
 		var data = current_tabs.get(tooltip)
@@ -144,9 +155,14 @@ func _create_current_tabs():
 		var dummy = select_or_add_new_tab(editor, target_saved_tab, false)
 		if current_editor_index == idx:
 			current_dummy = dummy
+		elif selected_scripts.has(tooltip):
+			tabs_to_show.append(dummy)
 	
 	for t in tab_containers:
 		t.check_container_valid()
+	
+	for dummy in tabs_to_show:
+		dummy.show()
 	
 	#script_list_manager.activate_item_by_idx(current_dummy.script_editor.get_index())
 	#current_dummy.ensure_script_editor_selected.call_deferred()
@@ -201,7 +217,7 @@ func _set_script_tab_data():
 
 func _on_new_tab_container(script_editor:Control, target_tab:int):
 	select_or_add_new_tab(script_editor, target_tab)
-	Utils.save_cache_data(tab_containers)
+	save_cache_data()
 
 func select_or_add_new_tab(editor_node:Node, target_tab:int=0, activate:=true):
 	if script_list_manager.script_list_filtering():
@@ -831,6 +847,32 @@ class DummyCTE extends VBoxContainer:
 
 
 
+func save_cache_data():
+	DirAccess.make_dir_recursive_absolute(Keys.TAB_CACHE_PATH.get_base_dir())
+	var data = {}
+	var meta = {
+		Keys.SELECTED_SCRIPTS: {},
+		#Keys.SPLIT_OFFSETS: = main_split_container.spl # wrapper doesn't have split_offsets, would need  to create a getter
+	}
+	
+	for i in range(tab_containers.size()):
+		var tab_container = tab_containers[i]
+		var dummy_editors = tab_container.dummy_editors.values()
+		for ni in range(dummy_editors.size()):
+			var dummy = dummy_editors[ni] as DummyEditor
+			var tooltip = dummy.get_script_list_tooltip()
+			if tooltip.begins_with("res://"):
+				tooltip = UFile.path_to_uid(tooltip)
+			data[tooltip] = {Keys.TAB: i, Keys.TAB_IDX: ni}
+			if ni == tab_container.current_tab:
+				meta[Keys.SELECTED_SCRIPTS][tooltip] = i
+	
+	
+	data[Keys.META_DATA] = meta
+	UFile.write_to_json(data, Keys.TAB_CACHE_PATH)
+
+
+
 class Utils:
 	static func ensure_connect(_signal:Signal, callable:Callable, _connect:bool):
 		if _connect:
@@ -866,24 +908,12 @@ class Utils:
 			if key.begins_with("uid"):
 				data[UFile.uid_to_path(key)] = data[key]
 		return data
-	
-	static func save_cache_data(tab_container_array:Array[DummyEditorTabContainer]):
-		DirAccess.make_dir_recursive_absolute(Keys.TAB_CACHE_PATH.get_base_dir())
-		var data = {}
-		for i in range(tab_container_array.size()):
-			var tab_container = tab_container_array[i]
-			var dummy_editors = tab_container.dummy_editors.values()
-			for ni in range(dummy_editors.size()):
-				var dummy = dummy_editors[ni] as DummyEditor
-				var tooltip = dummy.get_script_list_tooltip()
-				if tooltip.begins_with("res://"):
-					tooltip = UFile.path_to_uid(tooltip)
-				data[tooltip] = {Keys.TAB: i, Keys.TAB_IDX: ni}
-		
-		UFile.write_to_json(data, Keys.TAB_CACHE_PATH)
 
 
 class Keys:
+	const META_DATA = &"meta_data"
+	const SELECTED_SCRIPTS = &"selected_scripts"
+	const SPLIT_OFFSETS = &"split_offsets"
 	
 	const TAB_IDX = &"tab_idx"
 	const TAB = &"tab"

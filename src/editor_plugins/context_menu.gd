@@ -1,5 +1,7 @@
 extends EditorContextMenuPlugin
 
+const SLOT = CONTEXT_SLOT_SCRIPT_EDITOR
+
 const UTexture = preload("uid://ddu76iygjkxih") #! resolve ALibRuntime.Utils.UTexture
 
 var menu_icon:Texture2D

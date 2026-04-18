@@ -4,7 +4,7 @@ Simple splittable tabs for the ScriptEditor in Godot 4.4+
 Working on Linux, Mac, Windows
 
 ### **Be sure to download the zip in releases, not the repo source code.**
-If you want to use the source code for a fork or something, see below the image for more details.
+**If you want to use the source code for a fork or something, see below the image for more details.**
 
 Righting click the tab or sidebar item list will show an "Open In Split" popup. You can move the selected script to an existing split or new split here.
 
