@@ -140,7 +140,7 @@ func _create_current_tabs():
 		if key.is_absolute_path():
 			selected_scripts[UFile.uid_to_path(key)] = selected_scripts[key]
 		selected_scripts.erase(key)
-	print(selected_scripts)
+	
 	var tabs_to_show := []
 	var current_dummy:DummyEditor
 	for tooltip in saved_tooltip_arr:
