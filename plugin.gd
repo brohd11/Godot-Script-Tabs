@@ -136,6 +136,7 @@ func _create_current_tabs():
 			)
 	
 	var selected_scripts = metadata.get(Keys.SELECTED_SCRIPTS, {})
+	
 	for key in selected_scripts.keys(): # path is key, value is split
 		if key.is_absolute_path():
 			selected_scripts[UFile.uid_to_path(key)] = selected_scripts[key]
@@ -143,7 +144,7 @@ func _create_current_tabs():
 	
 	var tabs_to_show := []
 	var current_dummy:DummyEditor
-	for tooltip in saved_tooltip_arr:
+	for tooltip in saved_tooltip_arr: # this has uids in it too, but they will just pull meta
 		var data = current_tabs.get(tooltip)
 		if data == null:
 			continue # if not open, just skip
@@ -159,17 +160,14 @@ func _create_current_tabs():
 			tabs_to_show.append(dummy)
 	
 	for t in tab_containers:
+		t._selected_flag = false # set this false so it can properly select below
 		t.check_container_valid()
 	
 	for dummy in tabs_to_show:
 		dummy.show()
 	
-	#script_list_manager.activate_item_by_idx(current_dummy.script_editor.get_index())
-	#current_dummy.ensure_script_editor_selected.call_deferred()
 	if is_instance_valid(current_dummy):
 		current_dummy.show()
-	#current_dummy.activate_script_editor()
-	
 
 
 func _on_editor_tab_changed():
@@ -441,7 +439,6 @@ class DummyEditorTabContainer extends TabContainer:
 			return
 		
 		_selected_flag = true
-		
 		for d in get_children():
 			d.set_active(d == dummy_editor)
 		
@@ -614,7 +611,7 @@ class DummyEditor extends VBoxContainer:
 		_dummy_code_text_editor.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	
 	
-	func set_active(active:bool):
+	func set_active(active:bool, is_cleanup:bool = false):
 		if not is_instance_valid(script_editor):
 			return # necessary for when being deleted
 		if not active and not _initialized:
@@ -635,10 +632,10 @@ class DummyEditor extends VBoxContainer:
 		is_active = active
 		if active:
 			activate_script_editor()
-		move_children(active)
+		move_children(active, is_cleanup)
 	
 	
-	func move_children(active:bool):
+	func move_children(active:bool, is_cleanup:bool=false):
 		if not active and not _initialized:
 			return
 		
@@ -651,8 +648,8 @@ class DummyEditor extends VBoxContainer:
 				if get_child_count() == 0:
 					Utils.reparent_children(script_editor, self)
 				set_doc_style_box.call_deferred(active)
-			#else: # commenting this stops RichTextLabel from redrawing, seems ok to just free everything
-				#Utils.reparent_children(self, script_editor)
+			elif is_cleanup: # only on clean_up stops RichTextLabel from redrawing, seems ok to just free everything when closing regularly
+				Utils.reparent_children(self, script_editor)
 			
 		elif editor_type == EditorType.TEXT_EDITOR:
 			var code_text_editor = script_editor.find_children("*","CodeTextEditor", true, false).pop_front()
@@ -786,7 +783,6 @@ class DummyEditor extends VBoxContainer:
 		if Input.is_key_pressed(KEY_CTRL):
 			symbol_lookup.emit()
 	
-	
 	func activate_script_editor():
 		script_list_manager.activate_item_by_idx(get_script_index())
 		if not _initialized:
@@ -813,7 +809,7 @@ class DummyEditor extends VBoxContainer:
 	func clean_up():
 		set_doc_style_box(false)
 		if is_instance_valid(script_editor):
-			set_active(false)
+			set_active(false, true)
 		queue_free()
 
 
