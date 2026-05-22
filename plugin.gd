@@ -378,6 +378,7 @@ class DummyEditorTabContainer extends TabContainer:
 	var dummy_editors:Dictionary = {}
 	
 	#var _close_queued:=""
+	var _selected_flag:bool = false
 	
 	signal tabs_changed
 	signal empty_container
@@ -429,9 +430,29 @@ class DummyEditorTabContainer extends TabContainer:
 		return dummy_editor
 	
 	func _on_tab_selected(_tab:int):
-		activate_current.call_deferred()
+		activate_current()
+
+	func activate_current():
+		if _selected_flag:
+			return
+		
+		var dummy_editor = get_current_tab_control() as DummyEditor
+		if not is_instance_valid(dummy_editor):
+			return
+		
+		_selected_flag = true
+		
+		for d in get_children():
+			d.set_active(d == dummy_editor)
+		
+		await get_tree().process_frame
+		_selected_flag = false
+
 	
 	func _on_tab_changed(tab:int):
+		if _selected_flag:
+			return
+
 		var dummy_editor = get_tab_control(tab) as DummyEditor
 		if not is_instance_valid(dummy_editor):
 			return
@@ -443,12 +464,7 @@ class DummyEditorTabContainer extends TabContainer:
 			tab_history.erase(dummy_editor)
 		tab_history.append(dummy_editor)
 	
-	func activate_current():
-		var dummy_editor = get_current_tab_control() as DummyEditor
-		if not is_instance_valid(dummy_editor):
-			return
-		for d in get_children():
-			d.set_active(d == dummy_editor)
+
 	
 	
 	func _on_tab_closed(tab:int):
