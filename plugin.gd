@@ -168,6 +168,8 @@ func _create_current_tabs():
 	
 	if is_instance_valid(current_dummy):
 		current_dummy.show()
+	
+	_set_split_styles()
 
 
 func _on_editor_tab_changed():
@@ -176,6 +178,10 @@ func _on_editor_tab_changed():
 	if current in _script_editor_history:
 		_script_editor_history.erase(current)
 	_script_editor_history.append(current)
+	
+	#if script_list_manager.script_list_filtering():
+		#script_list_manager.clear_script_list_filter()
+		#script_list_manager.update_cache()
 	
 	_clean_script_editor_history()
 	_set_split_styles()
@@ -196,6 +202,7 @@ func _clean_script_editor_history():
 		_script_editor_history.pop_front()
 
 func _on_script_list_manager_cache_updated():
+	#print("UPDATED")
 	_set_script_tab_data()
 
 func _on_filesystem_changed():
@@ -285,6 +292,11 @@ func _on_symbol_lookup():
 
 func _on_script_editor_tab_container_child_changed():
 	_clean_script_editor_history() #^r not sure about this here, I guess things can be removed without tab changing
+	
+	# TEST this will make sure all tabs are correct label right away?
+	if script_list_manager.script_list_filtering():
+		script_list_manager.clear_script_list_filter()
+	script_list_manager.update_cache()
 	
 	# get last split and put it in a different one, this makes sense when opening from a link
 	# maybe not when opening from filesystem
