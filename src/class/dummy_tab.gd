@@ -1,17 +1,11 @@
 extends TabContainer
 
 const UtilsRemote = preload("res://addons/script_tabs/src/utils/utils_remote.gd")
-
-const UNode = UtilsRemote.UNode
-
 const ScriptListManager = UtilsRemote.ScriptListManager
 const SLKeys = ScriptListManager.Keys
-const SplitWrapper = UtilsRemote.SplitWrapper
 
 const UtilsLocal = preload("res://addons/script_tabs/src/utils/utils_local.gd")
-const DummyTab = UtilsLocal.DummyTab
 const DummyEditor = UtilsLocal.DummyEditor
-const DummyCTE = UtilsLocal.DummyCTE
 
 var _defer_connection:=false
 
@@ -20,7 +14,6 @@ var tab_history:=[]
 var script_list_manager:ScriptListManager
 var dummy_editors:Dictionary = {}
 
-#var _close_queued:=""
 var _selected_flag:bool = false
 
 signal tabs_changed
@@ -105,8 +98,6 @@ func _on_tab_changed(tab:int):
 	if dummy_editor in tab_history:
 		tab_history.erase(dummy_editor)
 	tab_history.append(dummy_editor)
-
-
 
 
 func _on_tab_closed(tab:int):

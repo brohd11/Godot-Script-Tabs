@@ -1,18 +1,11 @@
 extends VBoxContainer
 
 const UtilsRemote = preload("res://addons/script_tabs/src/utils/utils_remote.gd")
-
-const UNode = UtilsRemote.UNode
-
 const ScriptListManager = UtilsRemote.ScriptListManager
 const SLKeys = ScriptListManager.Keys
-const SplitWrapper = UtilsRemote.SplitWrapper
 
 const UtilsLocal = preload("res://addons/script_tabs/src/utils/utils_local.gd")
-const DummyTab = UtilsLocal.DummyTab
-const DummyEditor = UtilsLocal.DummyEditor
 const DummyCTE = UtilsLocal.DummyCTE
-
 
 enum EditorType {
 	TEXT_EDITOR,

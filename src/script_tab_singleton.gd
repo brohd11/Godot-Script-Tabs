@@ -4,16 +4,15 @@ extends SingletonRefCount
 const SingletonRefCount = Singletons.RefCount
 
 const UtilsRemote = preload("res://addons/script_tabs/src/utils/utils_remote.gd")
-
-const UNode = UtilsRemote.UNode
-
 const ScriptListManager = UtilsRemote.ScriptListManager
 const SLKeys = ScriptListManager.Keys
 const SplitWrapper = UtilsRemote.SplitWrapper
 
 const UtilsLocal = preload("res://addons/script_tabs/src/utils/utils_local.gd")
 
-const DummyEditorTabContainer = UtilsLocal.DummyTab
+# These are now in their own scripts
+# Arch: self -> DummyTab -> DummyEditor -> DummyCTE
+const DummyTab = UtilsLocal.DummyTab
 const DummyEditor = UtilsLocal.DummyEditor
 const DummyCTE = UtilsLocal.DummyCTE
 
@@ -67,7 +66,7 @@ var script_list_manager:ScriptListManager
 var _script_editor_history:Array= []
 
 var main_split_container:Container
-var tab_containers:Array[DummyEditorTabContainer] = []
+var tab_containers:Array[DummyTab] = []
 
 var unselected_split_stylebox:StyleBoxFlat
 
@@ -75,8 +74,8 @@ var _setup_complete_flag:=false
 var _symbol_lookup_flag:=false
 var _open_script_tab_flag:=-1
 
+#region PublicAPI
 
-var _script_data_dirty:= true
 
 static func get_valid_containers_for_path(path:String, callable:=Callable()):
 	var ins = get_instance()
@@ -99,6 +98,7 @@ func _open_script(path:String, tab:int=0, fs_singleton=null):
 		var editor_node = script_editor_tab_container.get_child(idx)
 		select_or_add_new_tab(editor_node, tab)
 
+#endregion
 
 func _plugin_init():
 	var pl = EditorPlugin.new()
@@ -285,12 +285,10 @@ func _on_script_list_manager_cache_updated():
 
 func _on_filesystem_changed():
 	return
-	#_script_data_dirty = true
 	_set_script_tab_data.call_deferred()
 
 func _on_validate():
 	return
-	#_script_data_dirty = true
 	_set_script_tab_data.call_deferred()
 
 func _set_script_tab_data():
@@ -332,7 +330,7 @@ func select_or_add_new_tab(editor_node:Node, target_tab:int=0, activate:=true):
 
 
 func _new_tab_container():
-	var tab = DummyEditorTabContainer.new()
+	var tab = DummyTab.new()
 	if not _plugin_initialized:
 		tab._defer_connection = true
 	
@@ -348,7 +346,7 @@ func _new_tab_container():
 	tab.tabs_changed.connect(_on_container_tab_changed)
 	tab_containers.append(tab)
 
-func _on_empty_container(container:DummyEditorTabContainer):
+func _on_empty_container(container:DummyTab):
 	tab_containers.erase(container)
 
 func _on_container_tab_changed():
@@ -418,13 +416,13 @@ func get_dummy_editor_from_editor(editor_node:Node):
 			break
 	return dummy_editor
 
-func get_current_split() -> DummyEditorTabContainer:
+func get_current_split() -> DummyTab:
 	return _get_split()
 
-func get_last_split() -> DummyEditorTabContainer:
+func get_last_split() -> DummyTab:
 	return _get_split(2)
 
-func _get_split(offset:int=1) -> DummyEditorTabContainer:
+func _get_split(offset:int=1) -> DummyTab:
 	var last_editor:Node
 	if _script_editor_history.size() < offset:
 		last_editor = script_editor_tab_container.get_current_tab_control()

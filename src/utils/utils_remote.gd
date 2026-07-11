@@ -7,4 +7,4 @@ const UTexture = preload("uid://ddu76iygjkxih") #! resolve ALibRuntime.Utils.UTe
 const ScriptListManager = preload("uid://d3o6grkkmk4qk") #! resolve ALibEditor.Singleton.ScriptListManager
 const SLKeys = ScriptListManager.Keys
 
-const SplitWrapper = preload("res://addons/addon_lib/brohd/alib_runtime/ui/container/split_wrapper/split_wrapper.gd")
+const SplitWrapper = preload("uid://ceuhswngaxtvo") #! resolve ALibRuntime.UICustom.SplitWrapper
