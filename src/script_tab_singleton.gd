@@ -84,7 +84,7 @@ static func get_valid_containers_for_path(path:String, callable:=Callable()):
 	if idx > -1:
 		current_editor = ins.script_editor_tab_container.get_child(idx)
 	
-	return UtilsLocal.get_valid_containers(current_editor, ins.tab_containers, callable)
+	return UtilsLocal.get_valid_containers(current_editor, ins.tab_containers, path, callable)
 
 static func open_script(path:String, tab:int=0, fs_singleton=null):
 	var ins = get_instance()
@@ -161,6 +161,10 @@ func _on_editor_node_ref_ready():
 	
 	EditorNodeRef.refresh_dynamic_refs()
 	
+	#await get_tree().process_frame
+	_deferred_init.call_deferred()
+
+func _deferred_init():
 	_create_current_tabs()
 	
 	_plugin_init() # create context menus
@@ -247,7 +251,8 @@ func _create_current_tabs():
 		current_dummy.show()
 	
 	_set_split_styles()
-	set_deferred(&"_setup_complete_flag", true)
+	_setup_complete_flag = true
+	#set_deferred(&"_setup_complete_flag", true)
 
 
 func _on_editor_tab_changed():

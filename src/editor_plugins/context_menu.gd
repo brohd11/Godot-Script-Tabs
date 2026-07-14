@@ -10,7 +10,7 @@ signal new_tab_container(path:String, target_split:int)
 func _popup_menu(paths: PackedStringArray) -> void:
 	var ins = ScriptTabSingleton.get_instance()
 	var current_editor = ins.script_editor_tab_container.get_current_tab_control()
-	var valid_items = UtilsLocal.get_valid_containers(current_editor, ins.tab_containers)
+	var valid_items = UtilsLocal.get_valid_containers(current_editor, ins.tab_containers, paths[0])
 	PopupWrapper.create_context_plugin_items(self, paths, valid_items, _callback)
 
 

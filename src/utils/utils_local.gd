@@ -10,7 +10,7 @@ const DummyCTE = preload("res://addons/script_tabs/src/class/dummy_cte.gd")
 
 static var menu_icon:Texture2D
 
-static func get_valid_containers(current_editor:Variant, script_tab_containers:Array, callable:=Callable()):
+static func get_valid_containers(current_editor:Variant, script_tab_containers:Array, path:String, callable:=Callable()):
 	var valid_items = {}
 	
 	if not is_instance_valid(menu_icon):
@@ -25,14 +25,14 @@ static func get_valid_containers(current_editor:Variant, script_tab_containers:A
 			var menu_path = "Open in Split/" + str(i + 1)
 			valid_items[menu_path] = {PopupWrapper.ItemParams.ICON: [menu_icon, null]}
 			if valid_callable:
-				valid_items[menu_path][PopupWrapper.ItemParams.CALLABLE] = callable.bind(i)
+				valid_items[menu_path][PopupWrapper.ItemParams.CALLABLE] = callable.bind(path, i)
 		else:
 			new_valid = tab.get_child_count() > 1
 	
 	if new_valid:
 		valid_items["Open in Split/New"] = {PopupWrapper.ItemParams.ICON: [menu_icon, null]}
 		if valid_callable:
-			valid_items["Open in Split/New"][PopupWrapper.ItemParams.CALLABLE] = callable.bind(script_tab_containers.size())
+			valid_items["Open in Split/New"][PopupWrapper.ItemParams.CALLABLE] = callable.bind(path, script_tab_containers.size())
 	
 	return valid_items
 

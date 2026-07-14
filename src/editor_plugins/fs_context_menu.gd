@@ -9,6 +9,7 @@ const UtilsLocal = preload("res://addons/script_tabs/src/utils/utils_local.gd")
 func _popup_menu(paths: PackedStringArray) -> void:
 	if paths.size() != 1:
 		return
+	
 	var selected = paths[0]
 	var text_types = ScriptListManager.get_text_file_types()
 	if selected.ends_with("/") or not selected.get_extension() in text_types:
