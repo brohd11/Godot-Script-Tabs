@@ -21,4 +21,4 @@ func _popup_menu(paths: PackedStringArray) -> void:
 
 func _callback(paths, popup_path:String):
 	var target = UtilsLocal.get_target_tab_from_popup(popup_path)
-	ScriptTabSingleton.open_script(paths[0], target)
+	ScriptTabSingleton.open_script(paths[0], target, FileSystemSingleton.get_instance())
