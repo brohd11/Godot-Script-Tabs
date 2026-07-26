@@ -48,7 +48,7 @@ func _all_unregistered_callback():
 	_plugin_clean_up()
 
 func _get_ready_bool() -> bool:
-	return is_node_ready()
+	return _plugin_initialized
 
 #endregion
 
@@ -136,9 +136,6 @@ func _exit_tree() -> void:
 func _on_editor_node_ref_ready():
 	EditorInterface.get_resource_filesystem().filesystem_changed.connect(_on_filesystem_changed)
 	
-	ScriptEditorRef.subscribe(ScriptEditorRef.Event.VALIDATE_SCRIPT, _on_validate)
-	ScriptEditorRef.subscribe(ScriptEditorRef.Event.TAB_CHANGED, _on_editor_tab_changed)
-	
 	var theme = EditorInterface.get_editor_theme()
 	unselected_split_stylebox = theme.get_stylebox(&"tab_selected", &"TabContainer").duplicate() as StyleBoxFlat
 	unselected_split_stylebox.bg_color = theme.get_color(&"disabled_bg_color", &"Editor")
@@ -148,7 +145,6 @@ func _on_editor_node_ref_ready():
 	
 	#var side_bar = EditorNodeRef.get_node_ref(EditorNodeRef.Nodes.SCRIPT_EDITOR_SIDEBAR_V_SPLIT)
 	script_list_manager = ScriptListManager.get_instance()
-	script_list_manager.cache_updated.connect(_on_script_list_manager_cache_updated)
 	
 	
 	main_split_container = SplitWrapper.new()
@@ -159,17 +155,19 @@ func _on_editor_node_ref_ready():
 	script_tab_par.add_child(main_split_container)
 	script_tab_par.move_child(main_split_container, 0)
 	
-	EditorNodeRef.refresh_dynamic_refs()
-	
-	#await get_tree().process_frame
-	_deferred_init.call_deferred()
+	ScriptListManager.call_on_ready(_deferred_init)
+
+#region Init
 
 func _deferred_init():
-	_create_current_tabs()
-	
+	await _create_current_tabs()
 	_plugin_init() # create context menus
 	
+	ScriptEditorRef.subscribe(ScriptEditorRef.Event.VALIDATE_SCRIPT, _on_validate)
+	ScriptEditorRef.subscribe(ScriptEditorRef.Event.TAB_CHANGED, _on_editor_tab_changed)
 	script_editor_tab_container.child_order_changed.connect(_on_script_editor_tab_container_child_changed, 1)
+	script_list_manager.cache_updated.connect(_on_script_list_manager_cache_updated)
+	
 	_plugin_initialized = true
 
 
@@ -185,6 +183,7 @@ func _create_current_tabs():
 	var metadata = saved_tab_tooltips.get(Keys.META_DATA, {})
 	saved_tab_tooltips.erase(Keys.META_DATA)
 	var current_tabs = script_list_manager.get_all_script_data_tooltip_key()
+	
 	for tooltip in current_tabs.keys():
 		if not saved_tab_tooltips.has(tooltip): # converted to uid in get_tab_data
 			saved_tab_tooltips[tooltip] = {}
@@ -247,13 +246,32 @@ func _create_current_tabs():
 	for dummy in tabs_to_show:
 		dummy.show()
 	
-	if is_instance_valid(current_dummy):
-		current_dummy.show()
-	
-	_set_split_styles()
 	_setup_complete_flag = true
-	#set_deferred(&"_setup_complete_flag", true)
+	
+	if is_instance_valid(current_dummy) and is_instance_valid(current_editor):
+		var set_cur = func():
+			current_editor.show()
+			_set_split_styles()
+			EditorNodeRef.refresh_dynamic_refs()
+			# end lamda
+		
+		set_cur.call_deferred()
+	
+	#^ not needed currently it seems..
+	#for dummy in tabs_to_show:
+	#var dce = current_dummy.code_edit
+	#if is_instance_valid(dce.syntax_highlighter):
+		#if dce.syntax_highlighter.has_method(&"reset_highlighter"):
+			#dce.syntax_highlighter.call(&"reset_highlighter")
 
+func _init_set_current_def(idx:int):
+	script_editor_tab_container.get_child(idx).show()
+	_set_split_styles()
+	
+	#set_deferred(&"_setup_complete_flag", true)
+	EditorNodeRef.refresh_dynamic_refs()
+
+#endregion
 
 func _on_editor_tab_changed():
 	#print("TAB CHANGED")

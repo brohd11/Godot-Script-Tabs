@@ -77,6 +77,7 @@ static func get_tab_data():
 	for key in data.keys():
 		if key.begins_with("uid"):
 			data[UFile.uid_to_path(key)] = data[key]
+			#data.erase(key) # is this needed? if so, a uid.gd would fail here, deleting itself
 	return data
 
 
