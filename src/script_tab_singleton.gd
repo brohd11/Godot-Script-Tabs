@@ -1,7 +1,6 @@
 @tool
 class_name ScriptTabSingleton
-extends SingletonRefCount
-const SingletonRefCount = Singletons.RefCount
+extends "res://addons/addon_lib/brohd/singleton/singleton_ref_count.gd" #! ext Singletons.RefCount
 
 const UtilsRemote = preload("res://addons/script_tabs/src/utils/utils_remote.gd")
 const ScriptListManager = UtilsRemote.ScriptListManager
