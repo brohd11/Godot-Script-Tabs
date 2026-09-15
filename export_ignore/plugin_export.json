@@ -9,7 +9,8 @@
 				"file_extensions": [],
 				"files": []
 			},
-			"export_folder": "script-tabs{{version=script_tabs}}/script_tabs",
+			"export_name": "script-tabs{{version=script_tabs}}",
+			"export_folder": "addons/script_tabs",
 			"other_transfers": [
 				{"to": "res://addons/script_tabs/src/remote/.gdignore"}
 			],
