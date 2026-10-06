@@ -18,5 +18,5 @@ Open splits and tab order are saved between sessions.
 This project uses code from other plugins I am using. Instead of requiring the download of multiple projects, I instead package the files needed in the release zip.
 
 For the source code to work, you need:
- - [EditorNodeRef](https://github.com/brohd11/Godot-Editor-Node-Ref) -> res://addons/addon_lib/editor_node_ref
- - [AddonLib](https://github.com/brohd11/Godot-Addon-Lib) -> res://addons/addon_lib/brohd
+ - [EditorNodeRef](https://github.com/brohd11/Godot-Editor-Node-Ref) -> res://addons/_lib/editor_node_ref
+ - [AddonLib](https://github.com/brohd11/Godot-Addon-Lib) -> res://addons/_lib/brohd

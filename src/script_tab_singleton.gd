@@ -1,6 +1,6 @@
 @tool
 class_name ScriptTabSingleton
-extends "res://addons/addon_lib/singleton/singleton_ref_count.gd" #! ext Singletons.RefCount
+extends "res://addons/_lib/singleton/singleton_ref_count.gd" #! ext Singletons.RefCount
 
 const UtilsRemote = preload("res://addons/script_tabs/src/utils/utils_remote.gd")
 const UFile = UtilsRemote.UFile
