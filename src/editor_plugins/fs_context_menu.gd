@@ -16,7 +16,7 @@ func _popup_menu(paths: PackedStringArray) -> void:
 		return
 	
 	var valid_items = ScriptTabSingleton.get_valid_containers_for_path(selected)
-	PopupWrapper.create_context_plugin_items(self, paths, valid_items, _callback)
+	PopupWrapper.ContextPlugin.create_items(self, paths, valid_items, _callback)
 
 
 func _callback(paths, popup_path:String):

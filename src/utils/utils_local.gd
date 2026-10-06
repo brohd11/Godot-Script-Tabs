@@ -1,4 +1,5 @@
 
+const PopupHelper = UtilR.Nodes.Popups.PathHelper
 const UtilsRemote = preload("res://addons/script_tabs/src/utils/utils_remote.gd")
 const UTexture = UtilsRemote.UTexture
 const UFile = UtilsRemote.UFile
@@ -23,16 +24,16 @@ static func get_valid_containers(current_editor:Variant, script_tab_containers:A
 		var tab = script_tab_containers[i]
 		if not is_instance_valid(current_editor) or not tab.has_tab_by_editor(current_editor):
 			var menu_path = "Open in Split/" + str(i + 1)
-			valid_items[menu_path] = {PopupWrapper.ItemParams.ICON: [menu_icon, null]}
+			valid_items[menu_path] = {PopupHelper.ParamKeys.ICON: [menu_icon, null]}
 			if valid_callable:
-				valid_items[menu_path][PopupWrapper.ItemParams.CALLABLE] = callable.bind(path, i)
+				valid_items[menu_path][PopupHelper.ParamKeys.CALLABLE] = callable.bind(path, i)
 		else:
 			new_valid = tab.get_child_count() > 1
 	
 	if new_valid:
-		valid_items["Open in Split/New"] = {PopupWrapper.ItemParams.ICON: [menu_icon, null]}
+		valid_items["Open in Split/New"] = {PopupHelper.ParamKeys.ICON: [menu_icon, null]}
 		if valid_callable:
-			valid_items["Open in Split/New"][PopupWrapper.ItemParams.CALLABLE] = callable.bind(path, script_tab_containers.size())
+			valid_items["Open in Split/New"][PopupHelper.ParamKeys.CALLABLE] = callable.bind(path, script_tab_containers.size())
 	
 	return valid_items
 
