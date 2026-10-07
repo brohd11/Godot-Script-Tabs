@@ -1,5 +1,5 @@
 
-const PopupHelper = UtilR.Nodes.Popups.PathHelper
+const PopupHelper = UtilR.Nodes.PopupMenus.PathHelper
 const UtilsRemote = preload("res://addons/script_tabs/src/utils/utils_remote.gd")
 const UTexture = UtilsRemote.UTexture
 const UFile = UtilsRemote.UFile
